@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  user
+}
+
+enum InstructionType {
+  text
+  video
+  pdf
+}
+
+model User {
+  id            String   @id @default(uuid())
+  full_name     String
+  group_name    String?
+  email         String   @unique
+  password_hash String
+  role          UserRole @default(user)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // relations
+  acknowledgements InstructionAck[]
+  test_results     TestResult[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Instruction {
+  id         String           @id @default(uuid())
+  title      String
+  type       InstructionType
+  content    String?
+  video_url  String?
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  // relations
+  attachments     InstructionAttachment[]
+  acknowledgements InstructionAck[]
+  tests           Test[]
+
+  @@index([type])
+  @@map("instructions")
+}
+
+model InstructionAttachment {
+  id             String      @id @default(uuid())
+  instruction_id String
+  file_name      String
+  file_type      String
+  file_url       String
+  uploaded_at    DateTime    @default(now())
+
+  // relation
+  instruction Instruction @relation(fields: [instruction_id], references: [id], onDelete: Cascade)
+
+  @@index([instruction_id])
+  @@map("instruction_attachments")
+}
+
+model InstructionAck {
+  id             String      @id @default(uuid())
+  user_id        String
+  instruction_id String
+  acknowledged_at DateTime   @default(now())
+
+  // relations
+  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  instruction Instruction @relation(fields: [instruction_id], references: [id], onDelete: Cascade)
+
+  // One ack per user per instruction
+  @@unique([user_id, instruction_id])
+  @@index([instruction_id])
+  @@index([user_id])
+  @@map("instruction_ack")
+}
+
+model Test {
+  id             String     @id @default(uuid())
+  instruction_id String
+  title          String
+  pass_score     Int        @default(70)
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  // relations
+  instruction Instruction @relation(fields: [instruction_id], references: [id], onDelete: Cascade)
+  questions   Question[]
+  results     TestResult[]
+
+  @@index([instruction_id])
+  @@map("tests")
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  test_id   String
+  text      String
+  created_at DateTime @default(now())
+
+  // relations
+  test     Test     @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  answers  Answer[]
+
+  @@index([test_id])
+  @@map("questions")
+}
+
+model Answer {
+  id          String   @id @default(uuid())
+  question_id String
+  text        String
+  is_correct  Boolean  @default(false)
+
+  // relation
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([question_id])
+  @@map("answers")
+}
+
+model TestResult {
+  id         String   @id @default(uuid())
+  user_id    String
+  test_id    String
+  score      Int
+  passed     Boolean
+  created_at DateTime @default(now())
+
+  // relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  test Test @relation(fields: [test_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([test_id])
+  @@map("test_results")
+}
